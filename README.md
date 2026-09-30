@@ -15,9 +15,7 @@
 
 这是 **SSH 终端中文菜单**，使用 systemd 服务在后台运行。关闭 SSH 后 Caddy 仍会运行。
 
-## 一键下载安装：公开仓库
-
-下面的命令用于**公开仓库**。如果仓库仍为私有，未认证下载通常会返回 404，请使用后面的私有仓库方法。
+## 一键下载安装
 
 用 root 登录 VPS，复制整行执行：
 
@@ -34,49 +32,6 @@ caddy-menu
 ```
 
 如果下载时提示 `curl: command not found`，Debian / Ubuntu 先执行 `apt-get update && apt-get install -y curl`；dnf 系统先执行 `dnf install -y curl`。
-
-## 私有仓库下载安装
-
-仓库为私有时，需要能读取 `4444654/si` 的 GitHub 访问令牌。
-
-可以创建 Fine-grained personal access token：资源所有者选 `4444654`，仓库只选 `si`，给 **Contents: Read-only** 权限。创建方法见 [GitHub 官方说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。
-
-用 root 在 VPS 的 Bash 终端粘贴下面整段。出现提示时输入令牌；输入内容不会显示，也不会作为 curl 的命令行参数或写入文件。
-
-```bash
-caddy_repo_install() {
-    local caddy_repo_token caddy_repo_result
-    if (( EUID != 0 )); then
-        printf '请先用 root 登录 VPS。\n' >&2
-        return 1
-    fi
-    read -r -s -p '请输入 GitHub 访问令牌：' caddy_repo_token || return 1
-    printf '\n'
-    if [[ ! "$caddy_repo_token" =~ ^[A-Za-z0-9_]+$ ]]; then
-        unset caddy_repo_token
-        printf '令牌格式不正确。\n' >&2
-        return 1
-    fi
-    printf 'header = "Authorization: Bearer %s"\nheader = "Accept: application/vnd.github.raw+json"\n' "$caddy_repo_token" |
-        curl --config - --proto '=https' --tlsv1.2 -fsSL --retry 3 --connect-timeout 15 --max-time 120 'https://api.github.com/repos/4444654/si/contents/caddy_vps_cn.sh?ref=main' -o /root/caddy_vps_cn.sh
-    caddy_repo_result=$?
-    unset caddy_repo_token
-    (( caddy_repo_result == 0 )) || return "$caddy_repo_result"
-    bash /root/caddy_vps_cn.sh
-}
-caddy_repo_install
-unset -f caddy_repo_install
-```
-
-请在普通终端中运行，避免开启会记录变量内容的 `set -x` 调试模式。无需把令牌发给别人。
-
-也可以直接从已登录的 GitHub 页面下载脚本，上传到 VPS 的 `/root/`，然后运行：
-
-```bash
-bash /root/caddy_vps_cn.sh
-```
-
-如果希望免令牌下载，可以自行将仓库改为公开：仓库 **Settings → General → Danger Zone → Change repository visibility**，按页面提示选择 Public。公开后仓库代码可被所有人访问。步骤见 [GitHub 官方说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility)。
 
 ## 使用前准备
 
