@@ -20,7 +20,7 @@
 用 root 登录 VPS，复制整行执行：
 
 ```bash
-curl -fsSL --retry 3 --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/4444654/si/main/caddy_vps_cn.sh -o /root/caddy_vps_cn.sh && bash /root/caddy_vps_cn.sh
+curl -fsSL https://raw.githubusercontent.com/4444654/si/main/i.sh|bash
 ```
 
 菜单中选 **1. 一键安装 + 添加反向代理**，按提示输入域名、后端端口和 HTTPS/HTTP 方式。
