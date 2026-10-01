@@ -1,6 +1,6 @@
 # Caddy VPS 中文管理菜单
 
-在 Linux VPS 上安装 Caddy，并通过 SSH 中文菜单管理反向代理。无需 Docker。
+Caddy VPS 中文管理菜单 v2.0.0：在 Linux VPS 上安装、修复和管理 Caddy，并通过 SSH 中文菜单管理反向代理。无需 Docker。
 
 ## 功能
 
@@ -11,6 +11,9 @@
 - 支持 HTTP / HTTPS 后端，以及纯 HTTP 的自定义监听端口。
 - 查看服务状态、日志、端口占用和后端连接情况。
 - 修改前自动备份；配置校验或重载失败时恢复原配置。
+- 自动识别 Debian / Ubuntu，并支持常见 dnf 系发行版。
+- 自动刷新 Caddy GPG Key；软件源安装失败时提供官方 Release 备用安装方式。
+- 新增 Caddy 修复工具，可处理 GPG、软件源、配置与 systemd 服务问题。
 - 通过系统软件包管理器更新 Caddy。
 
 这是 **SSH 终端中文菜单**，使用 systemd 服务在后台运行。关闭 SSH 后 Caddy 仍会运行。
@@ -20,7 +23,7 @@
 用 root 登录 VPS，复制整行执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/4444654/si/main/i.sh|bash
+bash <(curl -fsSL https://raw.githubusercontent.com/4444654/si/main/caddy_vps_cn.sh)
 ```
 
 菜单中选 **1. 一键安装 + 添加反向代理**，按提示输入域名、后端端口和 HTTPS/HTTP 方式。
@@ -36,11 +39,12 @@ caddy-menu
 ## 使用前准备
 
 1. 需要使用 Bash 4+、systemd 的 Linux VPS，以及 root / sudo 权限。
-2. 自动安装支持 Debian / Ubuntu，以及有 dnf 的 Fedora / RHEL / Rocky / AlmaLinux 等发行版；需要能够访问官方软件源。
-3. 先启动你的业务程序，例如监听 `127.0.0.1:5700`。脚本负责安装 Caddy 和配置反代，不安装业务程序。
-4. 使用自动 HTTPS 时，域名 A / AAAA 记录应正确指向 VPS，云平台安全组与系统防火墙放行 **TCP 80、443**；UDP 443 用于 HTTP/3，可选。
-5. 80 / 443 不能被 Nginx、Apache 或其他程序占用。菜单会提示占用情况。
-6. 不支持泛域名证书；泛域名需要另外配置 DNS 插件。
+2. v2.0.0 会通过 `/etc/os-release` 自动识别 Debian / Ubuntu；同时支持 Fedora / RHEL / Rocky / AlmaLinux 等带 dnf 的发行版。需要 systemd、Bash 4+ 和 root 权限。
+3. Debian / Ubuntu 安装会刷新 Caddy 官方仓库 GPG Key；若仓库签名或安装失败，会尝试 Caddy 官方 GitHub Release `.deb` 备用安装方式。
+4. 先启动你的业务程序，例如监听 `127.0.0.1:5700`。脚本负责安装 Caddy 和配置反代，不安装业务程序。
+5. 使用自动 HTTPS 时，域名 A / AAAA 记录应正确指向 VPS，云平台安全组与系统防火墙放行 **TCP 80、443**；UDP 443 用于 HTTP/3，可选。
+6. 80 / 443 不能被 Nginx、Apache 或其他程序占用。菜单会提示占用情况。
+7. 不支持泛域名证书；泛域名需要另外配置 DNS 插件。
 
 示例：
 
@@ -70,9 +74,9 @@ caddy-menu
 
 防火墙菜单只修改已启用的 UFW / firewalld；云平台安全组要在服务商控制台设置。
 
-## 验证范围
+## v2.0.0 检查
 
-脚本已通过 Bash 语法检查、ShellCheck，以及 64 项本地验证，包括真实 Caddy 配置校验、多域名 HTTP 转发、中文终端输入、无效配置回退、重载失败回退及中断恢复。没有在所有发行版 VPS 上实际执行软件包安装，也没有通过本地测试申请公网证书。
+发布时检查 GitHub Raw 可下载、Bash 语法、安装流程关键分支与菜单入口。实际软件包安装、不同云厂商网络环境和公网证书签发仍取决于目标 VPS 环境。
 
 ## 官方参考
 
