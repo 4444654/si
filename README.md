@@ -1,6 +1,6 @@
 # Caddy VPS 中文管理菜单
 
-Caddy VPS 中文管理菜单 v2.0.0：在 Linux VPS 上安装、修复和管理 Caddy，并通过 SSH 中文菜单管理反向代理。无需 Docker。
+Caddy VPS 中文管理菜单 v2.0.1：在 Linux VPS 上安装、修复和管理 Caddy，并通过 SSH 中文菜单管理反向代理。无需 Docker。
 
 ## 功能
 
@@ -31,7 +31,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/4444654/si/main/caddy_vps_cn
 后续再次打开菜单：
 
 ```bash
-caddy-menu
+fd
 ```
 
 如果下载时提示 `curl: command not found`，Debian / Ubuntu 先执行 `apt-get update && apt-get install -y curl`；dnf 系统先执行 `dnf install -y curl`。
@@ -39,7 +39,7 @@ caddy-menu
 ## 使用前准备
 
 1. 需要使用 Bash 4+、systemd 的 Linux VPS，以及 root / sudo 权限。
-2. v2.0.0 会通过 `/etc/os-release` 自动识别 Debian / Ubuntu；同时支持 Fedora / RHEL / Rocky / AlmaLinux 等带 dnf 的发行版。需要 systemd、Bash 4+ 和 root 权限。
+2. v2.0.1 会通过 `/etc/os-release` 自动识别 Debian / Ubuntu；同时支持 Fedora / RHEL / Rocky / AlmaLinux 等带 dnf 的发行版。需要 systemd、Bash 4+ 和 root 权限。
 3. Debian / Ubuntu 安装会刷新 Caddy 官方仓库 GPG Key；若仓库签名或安装失败，会尝试 Caddy 官方 GitHub Release `.deb` 备用安装方式。
 4. 先启动你的业务程序，例如监听 `127.0.0.1:5700`。脚本负责安装 Caddy 和配置反代，不安装业务程序。
 5. 使用自动 HTTPS 时，域名 A / AAAA 记录应正确指向 VPS，云平台安全组与系统防火墙放行 **TCP 80、443**；UDP 443 用于 HTTP/3，可选。
@@ -74,7 +74,7 @@ caddy-menu
 
 防火墙菜单只修改已启用的 UFW / firewalld；云平台安全组要在服务商控制台设置。
 
-## v2.0.0 检查
+## v2.0.1 检查
 
 发布时检查 GitHub Raw 可下载、Bash 语法、安装流程关键分支与菜单入口。实际软件包安装、不同云厂商网络环境和公网证书签发仍取决于目标 VPS 环境。
 
