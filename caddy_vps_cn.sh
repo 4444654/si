@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Caddy VPS 中文管理菜单 v1.0.0
+# Caddy VPS 中文管理菜单 v2.0.0
 # 用途：在使用 systemd 的 Linux VPS 上安装 Caddy、管理多个 HTTP/HTTPS 反向代理。
 # 软件源：Caddy 官方文档列出的稳定版仓库；不安装 Docker，不停止其他 Web 服务。
 # 官方参考：https://caddyserver.com/docs/install
@@ -9,7 +9,7 @@
 set -uo pipefail
 umask 077
 
-VERSION="1.0.1"
+VERSION="2.0.0"
 CFG="/etc/caddy/Caddyfile"
 SITES="/etc/caddy/vps-panel-sites"
 BACKUPS="/var/backups/caddy-vps-panel"
@@ -60,7 +60,7 @@ Caddy VPS 中文管理菜单
 帮助：bash caddy_vps_cn.sh --help
 
 这是 SSH 终端里的中文交互菜单。安装完成后也可运行：sudo caddy-menu
-支持 Debian/Ubuntu，以及有 dnf 的 Fedora/RHEL/Rocky/AlmaLinux 等发行版。
+自动识别 Debian / Ubuntu；同时支持有 dnf 的 Fedora/RHEL/Rocky/AlmaLinux 等发行版。
 要求：Linux、Bash 4+、systemd、root/sudo、能够访问官方软件源。
 
 首次使用：
@@ -421,6 +421,56 @@ install_caddy() {
     ok "安装完成，已设置开机自启。以后运行：sudo caddy-menu"
 }
 
+
+repair_caddy() {
+    say ""; say "Caddy 修复工具"
+    say "将检查安装、软件源、配置和 systemd 服务；不会删除现有站点配置。"
+    confirm "确认开始修复" || return 0
+
+    if [[ "$PKG_KIND" == "apt" ]]; then
+        say "正在刷新 Debian/Ubuntu 的 Caddy 软件源与 GPG Key……"
+        rm -f /etc/apt/sources.list.d/caddy-stable.list \
+              /etc/apt/sources.list.d/caddy-stable.list.save \
+              /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    fi
+
+    if ! command -v caddy >/dev/null 2>&1; then
+        warn "未检测到 Caddy，将重新执行安装流程。"
+        install_caddy || { err "Caddy 自动修复安装失败。请检查上方网络/软件源错误。"; return 1; }
+    elif [[ "$PKG_KIND" == "apt" ]]; then
+        # 已安装时也重新建立官方源；失败不影响当前可用的 Caddy。
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl gnupg debian-keyring debian-archive-keyring apt-transport-https iproute2 || true
+        if download 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' "$WORK/caddy-repair-key.asc" &&
+           gpg --batch --yes --dearmor -o "$WORK/caddy-repair-key.gpg" "$WORK/caddy-repair-key.asc" &&
+           download 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' "$WORK/caddy-repair.list"; then
+            install -m 0644 "$WORK/caddy-repair-key.gpg" /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+            install -m 0644 "$WORK/caddy-repair.list" /etc/apt/sources.list.d/caddy-stable.list
+            if ! apt-get update; then
+                warn "官方仓库签名仍未通过，已移除故障源；当前 Caddy 不受影响。"
+                rm -f /etc/apt/sources.list.d/caddy-stable.list
+                apt-get update || true
+            fi
+        else
+            warn "无法刷新官方仓库文件；保留当前 Caddy，继续检查服务。"
+        fi
+    fi
+
+    systemctl daemon-reload || { err "systemd daemon-reload 失败。"; return 1; }
+    check_service || { err "Caddy 服务结构异常，自动修复未完成。"; return 1; }
+    ensure_layout || { err "配置目录/导入规则修复失败。"; return 1; }
+    validate_config || { err "Caddyfile 校验失败；未强制启动，请先修正配置。"; return 1; }
+    systemctl enable caddy >/dev/null 2>&1 || true
+    if systemctl restart caddy; then
+        save_menu_command
+        ok "Caddy 修复完成：$(caddy version)"
+    else
+        err "Caddy 重启失败。最近日志如下："
+        journalctl -u caddy -n 40 --no-pager || true
+        return 1
+    fi
+}
+
 port_available_for_caddy() {
     local port="$1" line rows
     command -v ss >/dev/null 2>&1 || { err "缺少 ss，请安装 iproute2（Debian/Ubuntu）或 iproute（RHEL）。"; return 1; }
@@ -724,6 +774,7 @@ menu() {
         say " 11. 更新 Caddy"
         say " 12. 仅安装 Caddy"
         say " 13. 查看使用说明"
+        say " 14. Caddy 修复工具（GPG / 软件源 / 服务）"
         say "  0. 退出"
         ask choice "请输入选项" || return 0
         case "$choice" in
@@ -740,6 +791,7 @@ menu() {
            11) update_caddy ;;
            12) install_caddy ;;
            13) usage ;;
+           14) repair_caddy ;;
             0) say "已退出。Caddy 服务会继续在后台运行。"; return 0 ;;
             *) warn "无效选项。" ;;
         esac
