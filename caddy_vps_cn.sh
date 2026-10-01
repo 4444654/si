@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Caddy VPS 中文管理菜单 v2.0.1
+# Caddy VPS 中文管理菜单 v2.0.2
 # 用途：在使用 systemd 的 Linux VPS 上安装 Caddy、管理多个 HTTP/HTTPS 反向代理。
 # 软件源：Caddy 官方文档列出的稳定版仓库；不安装 Docker，不停止其他 Web 服务。
 # 官方参考：https://caddyserver.com/docs/install
@@ -9,7 +9,7 @@
 set -uo pipefail
 umask 077
 
-VERSION="2.0.1"
+VERSION="2.0.2"
 CFG="/etc/caddy/Caddyfile"
 SITES="/etc/caddy/vps-panel-sites"
 BACKUPS="/var/backups/caddy-vps-panel"
@@ -341,27 +341,19 @@ ensure_layout() {
 }
 
 save_menu_command() {
-    local source target="/usr/local/bin/fd"
-    source="${BASH_SOURCE[0]}"
-
-    # bash <(curl ...) 时脚本来自 /dev/fd/*，readlink 后通常不是普通文件。
-    # 直接从当前脚本描述符复制，确保快捷命令也能安装成功。
-    if [[ -r "$source" ]]; then
-        if ! cat -- "$source" > "$WORK/fd-menu"; then
-            warn "无法复制当前脚本，快捷命令 fd 未安装。"
-            return 0
-        fi
+    local target="/usr/local/bin/fd" src resolved
+    if command -v curl >/dev/null 2>&1 && curl --proto '=https' --tlsv1.2 -fsSL --retry 3 'https://raw.githubusercontent.com/4444654/si/main/caddy_vps_cn.sh' -o "$WORK/fd-menu"; then
+        :
     else
-        warn "无法读取当前脚本，快捷命令 fd 未安装。"
-        return 0
+        src="${BASH_SOURCE[0]}"
+        resolved="$(readlink -f -- "$src" 2>/dev/null || printf '%s' "$src")"
+        [[ -f "$resolved" && -r "$resolved" ]] || { err "快捷命令 fd 安装失败：无法取得完整菜单脚本。"; return 1; }
+        cp -- "$resolved" "$WORK/fd-menu" || return 1
     fi
-
-    if install -m 0755 "$WORK/fd-menu" "$target"; then
-        ok "快捷命令已安装：fd"
-        hash -r 2>/dev/null || true
-    else
-        warn "快捷命令 fd 写入失败；可继续用原安装命令打开菜单。"
-    fi
+    bash -n "$WORK/fd-menu" || { err "fd 菜单脚本语法检查失败。"; return 1; }
+    install -o root -g root -m 0755 "$WORK/fd-menu" "$target" || { err "无法写入 $target。"; return 1; }
+    hash -r 2>/dev/null || true
+    ok "快捷命令已安装：fd"
 }
 
 install_caddy() {
@@ -372,7 +364,7 @@ install_caddy() {
         say "检测到已有 Caddy，保留已有安装与配置。"
         ensure_layout || return 1
         validate_config && activate_config || return 1
-        save_menu_command
+        save_menu_command || return 1
         ok "Caddy 已就绪。以后运行：fd"
         return 0
     fi
@@ -431,7 +423,7 @@ install_caddy() {
     # 只有安装前不存在配置时，才用菜单配置替换软件包附带的默认欢迎页。
     (( ! had_config && ! had_binary )) && fresh=1
     ensure_layout "$fresh" || return 1
-    save_menu_command
+    save_menu_command || return 1
     ok "安装完成，已设置开机自启。以后运行：fd"
 }
 
@@ -476,7 +468,7 @@ repair_caddy() {
     validate_config || { err "Caddyfile 校验失败；未强制启动，请先修正配置。"; return 1; }
     systemctl enable caddy >/dev/null 2>&1 || true
     if systemctl restart caddy; then
-        save_menu_command
+        save_menu_command || return 1
         ok "Caddy 修复完成：$(caddy version)"
     else
         err "Caddy 重启失败。最近日志如下："
