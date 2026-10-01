@@ -9,7 +9,7 @@
 set -uo pipefail
 umask 077
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 CFG="/etc/caddy/Caddyfile"
 SITES="/etc/caddy/vps-panel-sites"
 BACKUPS="/var/backups/caddy-vps-panel"
@@ -365,17 +365,44 @@ install_caddy() {
     say "正在从官方稳定版仓库安装 Caddy……"
     case "$PKG_KIND" in
         apt)
+            # 先移除可能残留/过期的旧 Caddy Cloudsmith 源，避免 apt update 被旧签名阻断。
+            rm -f /etc/apt/sources.list.d/caddy-stable.list \
+                  /etc/apt/sources.list.d/caddy-stable.list.save \
+                  /usr/share/keyrings/caddy-stable-archive-keyring.gpg
             apt-get update || return 1
             DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
                 ca-certificates curl gnupg debian-keyring debian-archive-keyring \
                 apt-transport-https iproute2 || return 1
+
+            # 使用 Caddy 官方当前推荐的 Cloudsmith keyring/list 文件。
+            # 直接保存官方 keyring，避免沿用已经过期的历史子密钥。
             download 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' "$WORK/caddy-key.asc" || return 1
             gpg --batch --yes --dearmor -o "$WORK/caddy-key.gpg" "$WORK/caddy-key.asc" || return 1
             download 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' "$WORK/caddy-stable.list" || return 1
             install -m 0644 "$WORK/caddy-key.gpg" /usr/share/keyrings/caddy-stable-archive-keyring.gpg || return 1
             install -m 0644 "$WORK/caddy-stable.list" /etc/apt/sources.list.d/caddy-stable.list || return 1
-            apt-get update || return 1
-            DEBIAN_FRONTEND=noninteractive apt-get install -y caddy || return 1
+
+            # Debian 13 的 sqv 会严格拒绝过期签名子密钥。如果 Cloudsmith 元数据仍由
+            # 过期子密钥签名，则自动回退到 Caddy 官方 GitHub release 安装 .deb。
+            if apt-get update; then
+                DEBIAN_FRONTEND=noninteractive apt-get install -y caddy || return 1
+            else
+                warn "Caddy 软件源签名校验失败，改用官方 GitHub Release 安装包。"
+                rm -f /etc/apt/sources.list.d/caddy-stable.list
+                apt-get update || return 1
+                local arch api latest_url
+                arch="$(dpkg --print-architecture)"
+                case "$arch" in
+                    amd64|arm64|armhf) ;;
+                    *) err "暂不支持自动回退安装的架构：$arch"; return 1 ;;
+                esac
+                api='https://api.github.com/repos/caddyserver/caddy/releases/latest'
+                latest_url="$(curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "$api" | \
+                    sed -n 's/.*"browser_download_url": *"\([^"]*_'"$arch"'\.deb\)".*/\1/p' | head -1)"
+                [[ -n "$latest_url" ]] || { err "无法获取 Caddy 官方 .deb 下载地址。"; return 1; }
+                download "$latest_url" "$WORK/caddy.deb" || return 1
+                DEBIAN_FRONTEND=noninteractive apt-get install -y "$WORK/caddy.deb" || return 1
+            fi
             ;;
         dnf)
             local plugin_package="dnf-plugins-core"
