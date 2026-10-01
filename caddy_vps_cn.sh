@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Caddy VPS 中文管理菜单 v2.0.0
+# Caddy VPS 中文管理菜单 v2.0.1
 # 用途：在使用 systemd 的 Linux VPS 上安装 Caddy、管理多个 HTTP/HTTPS 反向代理。
 # 软件源：Caddy 官方文档列出的稳定版仓库；不安装 Docker，不停止其他 Web 服务。
 # 官方参考：https://caddyserver.com/docs/install
@@ -9,7 +9,7 @@
 set -uo pipefail
 umask 077
 
-VERSION="2.0.0"
+VERSION="2.0.1"
 CFG="/etc/caddy/Caddyfile"
 SITES="/etc/caddy/vps-panel-sites"
 BACKUPS="/var/backups/caddy-vps-panel"
@@ -59,7 +59,7 @@ Caddy VPS 中文管理菜单
 运行：sudo bash caddy_vps_cn.sh
 帮助：bash caddy_vps_cn.sh --help
 
-这是 SSH 终端里的中文交互菜单。安装完成后也可运行：sudo caddy-menu
+这是 SSH 终端里的中文交互菜单。安装完成后也可运行：fd
 自动识别 Debian / Ubuntu；同时支持有 dnf 的 Fedora/RHEL/Rocky/AlmaLinux 等发行版。
 要求：Linux、Bash 4+、systemd、root/sudo、能够访问官方软件源。
 
@@ -334,19 +334,33 @@ ensure_layout() {
         cp -- "$CFG" "$candidate" || return 1
         printf '\n# Caddy VPS 中文菜单：各站点独立保存\n%s\n' "$IMPORT" >> "$candidate" || return 1
     else
-        printf '# Caddy VPS 中文菜单\n# 使用 caddy-menu 添加站点\n%s\n' "$IMPORT" > "$candidate" || return 1
+        printf '# Caddy VPS 中文菜单\n# 使用 fd 添加站点\n%s\n' "$IMPORT" > "$candidate" || return 1
     fi
     "$CADDY_BIN" fmt --overwrite "$candidate" || return 1
     apply_file "$CFG" "$candidate"
 }
 
 save_menu_command() {
-    local source
-    source="$(readlink -f -- "${BASH_SOURCE[0]}")" || return 0
-    if [[ -f "$source" && "$source" != /usr/local/bin/caddy-menu ]]; then
-        install -m 0755 "$source" /usr/local/bin/caddy-menu || {
-            warn "快捷命令未写入，可继续用 bash 脚本原路径运行。"; return 0;
-        }
+    local source target="/usr/local/bin/fd"
+    source="${BASH_SOURCE[0]}"
+
+    # bash <(curl ...) 时脚本来自 /dev/fd/*，readlink 后通常不是普通文件。
+    # 直接从当前脚本描述符复制，确保快捷命令也能安装成功。
+    if [[ -r "$source" ]]; then
+        if ! cat -- "$source" > "$WORK/fd-menu"; then
+            warn "无法复制当前脚本，快捷命令 fd 未安装。"
+            return 0
+        fi
+    else
+        warn "无法读取当前脚本，快捷命令 fd 未安装。"
+        return 0
+    fi
+
+    if install -m 0755 "$WORK/fd-menu" "$target"; then
+        ok "快捷命令已安装：fd"
+        hash -r 2>/dev/null || true
+    else
+        warn "快捷命令 fd 写入失败；可继续用原安装命令打开菜单。"
     fi
 }
 
@@ -359,7 +373,7 @@ install_caddy() {
         ensure_layout || return 1
         validate_config && activate_config || return 1
         save_menu_command
-        ok "Caddy 已就绪。以后运行：sudo caddy-menu"
+        ok "Caddy 已就绪。以后运行：fd"
         return 0
     fi
     say "正在从官方稳定版仓库安装 Caddy……"
@@ -418,7 +432,7 @@ install_caddy() {
     (( ! had_config && ! had_binary )) && fresh=1
     ensure_layout "$fresh" || return 1
     save_menu_command
-    ok "安装完成，已设置开机自启。以后运行：sudo caddy-menu"
+    ok "安装完成，已设置开机自启。以后运行：fd"
 }
 
 
